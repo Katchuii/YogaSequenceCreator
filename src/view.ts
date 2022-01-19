@@ -1,4 +1,5 @@
 
+import { clear, timeStamp } from "console";
 import { IUserData, IAsana } from "./typemodels";
 
 // HA wie funktioniert play()?
@@ -21,9 +22,11 @@ export class SequenceCreatorView {
     interval: any;
     activeItem: number;
     counter: number = 0;
-    scrollIntoViewOptions: ScrollIntoViewOptions = {behavior : "smooth", block: "start"};
-    gongSound : HTMLAudioElement;
-   
+    pauseCounter : number = 0;
+    scrollIntoViewOptions: ScrollIntoViewOptions = { behavior: "smooth", block: "start" };
+    gongSound: HTMLAudioElement;
+    otherGongSound: HTMLAudioElement;
+
 
     constructor() {
         // set default values for level, duration & theme:
@@ -34,6 +37,7 @@ export class SequenceCreatorView {
         this.themeRadio = document.getElementById('equilibrium');
         this.themeRadio.checked = true;
         this.gongSound = new Audio('./sound/Meditation-bell-sound.mp3');
+        this.otherGongSound = new Audio('./sound/Japanes-bell.wav');
         this._initRangeSlider();
 
         /**
@@ -74,7 +78,7 @@ export class SequenceCreatorView {
 
         document.getElementById("audio").addEventListener('click', event => {
             console.log("audio")
-            if(document.querySelector("body").classList.contains("app-muted")) {
+            if (document.querySelector("body").classList.contains("app-muted")) {
                 this.unmute();
             } else {
                 this.mute()
@@ -94,7 +98,7 @@ export class SequenceCreatorView {
     /**
      * @returns {IUserData} - users choice from FormData for filtering Asana-Pool
      */
-    public getUserChoice() : IUserData {
+    public getUserChoice(): IUserData {
         this.formData = new FormData(document.querySelector('form'));
         this.userData = {
             // Rückgabewerte aus Form into numbers (gut weil in asana-datei auch alles numbers/ später kann man mit Prüfsumme arbeiten....)
@@ -117,17 +121,25 @@ export class SequenceCreatorView {
             _this.sequenceDurationDiv.innerHTML = (<HTMLInputElement>event.target).value;
         });
     }
-    
+
     /**
      * creates List of Asanas and adds Progressbar to active List-Item
+     * contains eventListerner for click-event selectAsana()
      * @param asanaSequence - filtered List of Asanas ready to be rendered
      * @param ol - ordered list where Asana-list-items get attached to
      * @todo - Zeile 130 in appendChilds ändern , um Asana img flexibel einfügen zu könnne  (für media queries!)
      */
-    addListItems(asanaSequence: IAsana[], ol : HTMLOListElement) {
+    addListItems(asanaSequence: IAsana[], ol: HTMLOListElement) {
         let _this = this;
         asanaSequence.forEach((asana, index) => {
             let li = document.createElement("li");
+            let button = document.createElement("button");
+            button.classList.add("asana-list-trigger");
+            button.addEventListener('click', () => {
+                this.selectAsana(index);
+                this.resetGong(this.gongSound);
+                this.play();
+            })
             let progress = document.createElement("progress");
             progress.classList.add("progressbar");
             progress.value = 0;
@@ -138,9 +150,10 @@ export class SequenceCreatorView {
             counterElem.innerHTML = (index + 1).toString();
             img.src = 'img/IMG_1724.JPG';
             img.classList.add("asanaPic");
-            li.innerHTML = img.outerHTML + "<div class='asana-title-bar'>" + counterElem.outerHTML + "<div><span class='asanaName'>" + asana.name + "</span><span class='asanaName'>" + asana.titel + "</span></div>" + progress.outerHTML + "</div>";
+            button.innerHTML = img.outerHTML + "<div class='asana-title-bar'>" + counterElem.outerHTML + "<div><span class='asanaName'>" + asana.name + "</span><span class='asanaName'>" + asana.titel + "</span></div>" + progress.outerHTML + "</div>";
+            li.appendChild(button);
             li.classList.add("asanas");
-            if(index == 0) {
+            if (index == 0) {
                 li.classList.add("asana-active");
             }
             li.id = 'li_' + index;
@@ -153,13 +166,13 @@ export class SequenceCreatorView {
      * @param {IAsana[]} asanaSequence - resets old asana-sequence, renders new one
      * @returns container with asana-sequence
      */
-    renderSequence(asanaSequence: IAsana[]) : HTMLElement {
-        let container : HTMLElement = document.getElementById("sequence-container");
+    renderSequence(asanaSequence: IAsana[]): HTMLElement {
+        let container: HTMLElement = document.getElementById("sequence-container");
         let existingList = container.querySelector("ol");
         if (existingList) {
             existingList.remove();
         }
-        let ol : HTMLOListElement= document.createElement("ol");
+        let ol: HTMLOListElement = document.createElement("ol");
         ol.classList.add("sequence");
         this.addListItems(asanaSequence, ol);
         container.appendChild(ol);
@@ -167,7 +180,7 @@ export class SequenceCreatorView {
         document.querySelector("body").dataset.visiblePage = "playlist";
         return container;
     }
-    
+
     /**
      * @todo can be shortened by giving radio-buttons same name and read value
      * @returns the duration of 1 Asana according to User-Choice ""level"
@@ -187,6 +200,34 @@ export class SequenceCreatorView {
         }
     }
 
+    /**
+     * user can skip Asanas and choose next Asana by click
+     */
+    selectAsana(listItem: number): void {
+        console.log(listItem);
+        let listItems = document.querySelectorAll(".asanas");
+        document.querySelector(".asana-active").classList.remove("asana-active");
+        listItems[listItem].classList.add("asana-active");
+        listItems[listItem].scrollIntoView(this.scrollIntoViewOptions);
+        this.counter = 0;
+        listItems[this.activeItem].querySelector("progress").value = 0;
+        this.activeItem = listItem;
+    }
+
+    /**
+     * determines the break between two asana
+     * @param milliseconds 
+     */
+    sleep(milliseconds) {
+
+        console.log("sleep")
+        const date = Date.now();
+        let currentDate = null;
+        do {
+            currentDate = Date.now();
+        } while (currentDate - date < milliseconds);
+        //return new Promise(resolve => setTimeout(resolve, milliseconds));
+    }
 
     /**
      * activates timer/css-class on progressbar of active asana-listitem
@@ -195,19 +236,19 @@ export class SequenceCreatorView {
      * @todo - Funktion für Pause zwischen den Asanas (mit Counter z.B. oder TimeOut) mit gelber Progressbar
      */
     play() {
+        clearInterval(this.interval);
         let maxTime = this.calcTime();
-        let listItems = document.querySelectorAll("li");
+        let listItems = document.querySelectorAll(".asanas");
         for (let i = 0; i < listItems.length; i++) {
-            if(listItems[i].classList.contains("asana-active")) {
+            if (listItems[i].classList.contains("asana-active")) {
                 this.activeItem = i;
-            } 
+            }
         }
         this.interval = setInterval(() => {
             this.counter += 1;
             listItems[this.activeItem].querySelector("progress").value = this.counter;
-            if(this.counter >= maxTime) {
-                if(this.activeItem == listItems.length -1) {
-                    console.log("Ende")
+            if (this.counter >= maxTime) {
+                if (this.activeItem == listItems.length - 1) {
                     this.pause();
                     document.querySelector(".asana-active").classList.remove("asana-active");
                     listItems[0].classList.add("asana-active");
@@ -216,19 +257,38 @@ export class SequenceCreatorView {
                     this.counter = 0;
                 }
                 else {
-                    document.querySelector(".asana-active").classList.remove("asana-active");
-                    this.gongSound.pause();
-                    this.gongSound.currentTime = 0;
-                    this.gongSound.play();
-                    listItems[this.activeItem + 1].classList.add("asana-active");
-                    listItems[this.activeItem + 1].scrollIntoView(this.scrollIntoViewOptions);
-                    this.counter = 0;
-                    this.activeItem += 1;
-                    listItems[this.activeItem - 1].querySelector("progress").value = 0;
+                    // Idee: this.selectAsana erst ausführen wenn weiteres setIntervall bis 6 gezählt hat.
+                    
+                    // setInterval(() => {
+                    //     let pauseTime = 10;
+                    //     this.pauseCounter += 1;
+                    //     listItems[this.activeItem].querySelector("progress").value = this.pauseCounter;
+                    //     if(this.pauseCounter )
+                    // })
+                    
+                    this.selectAsana(this.activeItem + 1);
+                    this.playGong(this.gongSound);
+                    console.log("Wait 6 seconds")
+                    this.sleep(6000);
+                    console.log("After 6 seconds")
+                    this.playGong(this.otherGongSound);
                 }
             }
         }, 1000);
         document.querySelector('body').classList.add("sequence-is-playing");
+
+
+    }
+
+    resetGong(sound) {
+        sound.pause();
+        sound.currentTime = 0;
+    }
+
+    playGong(sound) {
+        //ensures the former sound stops before the next one begins
+        this.resetGong(sound);
+        sound.play();
     }
 
     /**
