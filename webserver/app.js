@@ -3,7 +3,6 @@ import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 import asanas from '../dist/js/asanas.js';
-import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 
 

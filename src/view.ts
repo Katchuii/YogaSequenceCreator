@@ -24,8 +24,8 @@ export class SequenceCreatorView {
     counter: number = 0;
     pauseCounter : number = 0;
     scrollIntoViewOptions: ScrollIntoViewOptions = { behavior: "smooth", block: "start" };
-    gongSound: HTMLAudioElement;
-    otherGongSound: HTMLAudioElement;
+    endGongSound: HTMLAudioElement;
+    startGongSound: HTMLAudioElement;
 
 
     constructor() {
@@ -36,8 +36,8 @@ export class SequenceCreatorView {
         this.rangeSlider.value = 90;
         this.themeRadio = document.getElementById('equilibrium');
         this.themeRadio.checked = true;
-        this.gongSound = new Audio('./sound/Meditation-bell-sound.mp3');
-        this.otherGongSound = new Audio('./sound/Japanes-bell.wav');
+        this.endGongSound = new Audio('./sound/Meditation-bell-sound.mp3');
+        this.startGongSound = new Audio('./sound/Japanes-bell.wav');
         this._initRangeSlider();
 
         /**
@@ -137,13 +137,13 @@ export class SequenceCreatorView {
             button.classList.add("asana-list-trigger");
             button.addEventListener('click', () => {
                 this.selectAsana(index);
-                this.resetGong(this.gongSound);
+                this.resetGong(this.endGongSound);
                 this.play();
             })
             let progress = document.createElement("progress");
             progress.classList.add("progressbar");
             progress.value = 0;
-            progress.max = _this.calcTime();
+            progress.max = 100;
             let img = document.createElement("img");
             let counterElem = document.createElement("span");
             counterElem.classList.add("counterElem");
@@ -246,8 +246,8 @@ export class SequenceCreatorView {
         }
         this.interval = setInterval(() => {
             this.counter += 1;
-            listItems[this.activeItem].querySelector("progress").value = this.counter;
-            if (this.counter >= maxTime) {
+            listItems[this.activeItem].querySelector("progress").value = (100 / maxTime) * this.counter;
+            if (this.counter == maxTime) {
                 if (this.activeItem == listItems.length - 1) {
                     this.pause();
                     document.querySelector(".asana-active").classList.remove("asana-active");
@@ -257,21 +257,21 @@ export class SequenceCreatorView {
                     this.counter = 0;
                 }
                 else {
-                    // Idee: this.selectAsana erst ausführen wenn weiteres setIntervall bis 6 gezählt hat.
-                    
-                    // setInterval(() => {
-                    //     let pauseTime = 10;
-                    //     this.pauseCounter += 1;
-                    //     listItems[this.activeItem].querySelector("progress").value = this.pauseCounter;
-                    //     if(this.pauseCounter )
-                    // })
-                    
-                    this.selectAsana(this.activeItem + 1);
-                    this.playGong(this.gongSound);
-                    console.log("Wait 6 seconds")
-                    this.sleep(6000);
-                    console.log("After 6 seconds")
-                    this.playGong(this.otherGongSound);
+                    // Idee: this.selectAsana erst ausführen wenn weiteres setIntervall bis 6 gezählt hat.          
+                    this.playGong(this.endGongSound);
+                    let pauseTime = 10;
+                    listItems[this.activeItem].querySelector("progress").classList.add("progress-style-pause");
+                    let pauseInterval = setInterval(() => {
+                        this.pauseCounter += 1;
+                        listItems[this.activeItem].querySelector("progress").value = (100 / pauseTime) *  this.pauseCounter;
+                        if(this.pauseCounter == pauseTime ) {
+                            this.selectAsana(this.activeItem + 1);
+                            this.playGong(this.startGongSound);
+                            clearInterval(pauseInterval);
+                            this.pauseCounter = 0;
+                            listItems[this.activeItem].querySelector("progress").classList.remove("progress-style-pause");
+                        }
+                    }, 1000)
                 }
             }
         }, 1000);
@@ -301,12 +301,12 @@ export class SequenceCreatorView {
 
     mute() {
         document.querySelector("body").classList.add("app-muted");
-        this.gongSound.muted = true;
+        this.endGongSound.muted = true;
     }
 
     unmute() {
         document.querySelector("body").classList.remove("app-muted");
-        this.gongSound.muted = false;
+        this.endGongSound.muted = false;
     }
 }
 
